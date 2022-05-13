@@ -18,6 +18,7 @@ from hxrg.type.read import hxread
 from hxrg.type.ramp import hxramp
 from scipy.ndimage import zoom
 from tqdm import tqdm
+
 class badpixelmap():
     def __init__(self):
         self.path = '/nirps_raw/nirps/characterization'
@@ -28,7 +29,7 @@ class badpixelmap():
         self.ls_flat = [];
         self.p_data = "/nirps_raw/nirps/reads"
         
-        self.darks = [ "NIRPS_2022-05-05T15_31_01_590.fits",
+        self.darks = ["NIRPS_2022-05-05T15_31_01_590.fits",
                       "NIRPS_2022-05-05T15_40_24_489.fits",
                       "NIRPS_2022-05-05T15_49_47_388.fits",
                       "NIRPS_2022-05-05T15_59_10_285.fits"]
@@ -126,10 +127,10 @@ class badpixelmap():
 
         lowf = zoom(box,pix_bin)
         im/=lowf
-
+        #anything more devien than 9% we consider not well behave pixel.
         mask = np.zeros_like(im)
-        mask[im<0.85] = 1
-        mask[im>1.15] = 1
+        mask[im<0.91] = 1
+        mask[im>1.09] = 1
         mask[:4,:]=0
         mask[-4:,:] = 0
         mask[:,:4] = 0
@@ -181,7 +182,8 @@ class badpixelmap():
         hdu.writeto(join(self.path,'gpm.fits'),overwrite=True)
 if __name__=='__main__':
     
-       bpm = badpixelmap()     
+       bpm = badpixelmap()
+       
        print("Computing hot pixels")
        #bpm.hotpixels()
        print("Computing bad pixels")

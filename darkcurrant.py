@@ -18,12 +18,16 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 sns.set_theme()
 import numpy as np
-path = '/nirps_raw/characterization' #place where to store the superbias file and the graphs
+
+
+path = '/nirps_raw/nirps/characterization'#place where to store the superbias file and the graphs
+p_data = "/nirps_raw/nirps/reads"
 gpm = np.ones((4096,4096),dtype=bool)
 #if gpm.fits is there take it
 if isfile(join(path,'gpm.fits')):
     print('using gpm.fits')
     gpm = np.asarray(fits.getdata(join(path,'gpm.fits')),dtype=bool)
+    
 def repport(dc,show=True,gain=1.27):
     dc = dc*gain
     stats = sc(dc,sigma=5)
@@ -41,112 +45,28 @@ def repport(dc,show=True,gain=1.27):
     f.savefig(join(path,'darkcurrant_dist.png'))
     if show:
         plt.show()
-def makedarkcurrent(uid,sideonly=True,toponly=False):
-    fr = findread()
-    ls = fr.findreads(uid)
+def makedarkcurrent(fname,sideonly=True,toponly=False):
+    if '/' not in fname:
+        fname = join(p_data,fname)
+    
     read = hxread()
     R = hxramp(sideonly=sideonly,toponly=toponly)
-    print("Making uid: %s"%uid)
-    for f in tqdm(ls):
-        read(f)
+    cube = fits.getdata(fname)
+    for im in tqdm(cube):
+        read(np.asarray(im,dtype=float))
+        read.H = fits.getheader(fname)
         R<<read
     R.fit()
     return R.a[gpm]
-def darkcurrant(uids):
-    dc = [];
-    for uid in uids:
-        fr = findramp()
-        rfile = fr.findramp(uid)
-        slope = fits.open(rfile)['slope'].data
-        dc.append(sc(slope[gpm],sigma=5))
-    return dc
-def darkcurrantUdeM(ls):
-    dc = []; 
-    for rfile in ls:   
-        slope = fits.getdata(rfile)[0]
-        dc.append(sc(slope[gpm],sigma=5))
-    return dc
+
 
 if '__main__' in __name__:
-    
-    lsuids =    ['20210406204047',
-             '20210406205100',
-             '20210406210113',
-             '20210406211126',
-             '20210406212139',
-             '20210406213152',
-             '20210406214205',
-             '20210406215218',
-             '20210406220231',
-             '20210406221245',
-             '20210406222258',
-             '20210406223311',
-             '20210406224324',
-             '20210406225337',
-             '20210406230350',
-             '20210406231403',
-             '20210406232416',
-             '20210406233429',
-             '20210406234442',
-             '20210406235455',
-             '20210407000508',
-             '20210407001521',
-             '20210407002534',
-             '20210407003547',
-             '20210407004600',
-             '20210407005613',
-             '20210407010626',
-             '20210407011639',
-             '20210407012652',
-             '20210407013706',
-             '20210407014719',
-             '20210407015732',
-             '20210407020745',
-             '20210407021758',
-             '20210407022811',
-             '20210407023824',
-             '20210407024837',
-             '20210407025850',
-             '20210407030903',
-             '20210407031916',
-             '20210407032929',
-             '20210407033942',
-             '20210407034955',
-             '20210407040008',
-             '20210407041021',
-             '20210407042034',
-             '20210407043047',
-             '20210407044100',
-             '20210407045113',
-             '20210407050127',
-             '20210407051140',
-             '20210407052153',
-             '20210407053206',
-             '20210407054219',
-             '20210407055232',
-             '20210407060245',
-             '20210407061258',
-             '20210407062311',
-             '20210407063324',
-             '20210407064337']#data for NIRPS
+    darks = ["NIRPS_2022-05-05T15_31_01_590.fits",
+            "NIRPS_2022-05-05T15_40_24_489.fits",
+            "NIRPS_2022-05-05T15_49_47_388.fits",
+            "NIRPS_2022-05-05T15_59_10_285.fits"]
+
     '''
-    ls_udem = ['/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_01.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_02.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_03.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_04.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_05.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_06.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_07.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_08.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_09.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_10.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_11.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_12.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_13.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_14.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_15.fits',
-               '/nasmtl01/HxRGdata/grosdisk/grosdisk/data/20181113223015/NIRPS_UdeM_DARK_16.fits'
-               ]
     dc = darkcurrant(lsuids)
     dc_mean,dc_med,dc_std = zip(*dc)
     darkc_copl,_,darkerr_copl = sc(dc_mean)
@@ -163,22 +83,22 @@ if '__main__' in __name__:
     print("NIRPS [COPL]: %.4f+/-%.4f adu/s"%(darkc_copl,darkerr_copl))
     print("NIRPS [UdeM]: %.4f+/-%.4f adu/s"%(darkc_udem,darkerr_udem))
     '''
-    # from datetime import datetime
-    # gain = 1.27
-    # lfile = '/nirps_raw/characterization/dc-%s.csv'%(datetime.now().strftime("%Y%m%d%H%M"))
-    # with open(lfile,'a') as f:
-    #     f.write("uid,mean,median,std\n")
-    # for uid in lsuids:
-    #     dc = makedarkcurrent(uid)
-    #     stats = sc(dc*gain,sigma=5)
-    #     with open(lfile,'a') as f:
-    #         f.write("%s,%f,%f,%f\n"%(uid,stats[0],stats[1],stats[2]))
-    #     print("%s,%f,%f,%f\n"%(uid,stats[0],stats[1],stats[2]))
-    #repport(dc,show=True)
-    uid = lsuids[10]
-    print(uid)
+    from datetime import datetime
+    gain = 1.27
+    lfile = join(path,'dc-%s.csv'%(datetime.now().strftime("%Y%m%d%H%M")))
+    with open(lfile,'a') as f:
+        f.write("uid,mean,median,std\n")
+    for fname in darks:
+        dc = makedarkcurrent(fname)
+        stats = sc(dc*gain,sigma=5)
+        with open(lfile,'a') as f:
+            f.write("%s,%f,%f,%f\n"%(fname,stats[0],stats[1],stats[2]))
+        print("%s,%f,%f,%f\n"%(fname,stats[0],stats[1],stats[2]))
+    repport(dc,show=True)
 
+
+'''
     dc = makedarkcurrent(uid,sideonly=True,toponly=False)
     repport(dc)
-    
+'''  
     

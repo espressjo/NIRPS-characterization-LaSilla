@@ -12,15 +12,18 @@ from astropy.stats import sigma_clipped_stats as sc
 import numpy as np
 from os.path import join,isfile
 from tqdm import tqdm
+from os.path import basename
 from astropy.io import fits
 
 class readoutnoise():
     def __init__(self):
-        self.path = '/nirps_raw/characterization'
-        self.pathtmp = '/nirps_raw/characterization/.tmp'
+
+        self.path = '/nirps_raw/nirps/characterization'
+        self.pathtmp = '/nirps_raw/nirps/characterization/.tmp'
+        self.p_data = "/nirps_raw/nirps/reads"
         self.ro_time = 5.24288
         self.N = 1#number of read
-        self.gain = 1.33
+        self.gain = 1.27
         self.gpm = np.asarray(fits.getdata(join(self.path,'gpm.fits')),dtype=bool) 
         #We don't want to use the reference pixels to calculate the gain
         self.gpm[:4,:]=False
@@ -33,47 +36,52 @@ class readoutnoise():
     def compute_ro(self,cds):
         return np.asarray([self._amp_ro(cds[:,i*128:(i+1)*128],self.gpm[:,i*128:(i+1)*128]) for i in range(32)])
             
-    def make(self,uid):
-        ls = fr.findreads(uid)
+    def make(self,fname):
+        if '/' not in fname:
+            fname = join(self.p_data,fname)
+        cube = fits.getdata(fname)
+        H = fits.getheader(fname)
         r = hxread()
         R = hxramp(toponly=self.toponly)
-        r(ls[0])
+        r(np.asarray(cube[0],dtype=float))
+        r.H = H
         R<<r
         per_amp_ro = [];
         
-        for f in tqdm(ls[1:]):
-            r(f)
+        for i in tqdm(range(cube.shape[0]-1)):
+            r(cube[i])
+            r.H = H
             R<<r
             R.fit()
             per_amp_ro.append(self.compute_ro(R.a*self.N*self.ro_time))
             self.N+=1
         if self.toponly:
-            np.save(join(self.pathtmp,"%s.readout.to"%uid),np.asarray(per_amp_ro))
+            np.save(join(self.pathtmp,"%s.readout.to"%basename(fname)),np.asarray(per_amp_ro))
         else:
-            np.save(join(self.pathtmp,"%s.readout"%uid),np.asarray(per_amp_ro))
+            np.save(join(self.pathtmp,"%s.readout"%basename(fname)),np.asarray(per_amp_ro))
         return np.asarray(per_amp_ro)
-    def check_cds_noise(self,lsuid):
+    def check_cds_noise(self,fnames):
         stats = [];
-        for uid in lsuid:
+        for fname in fnames:
             if self.toponly:
-                stats.append(sc(np.load(join(self.pathtmp,"%s.readout.to.npy"%uid))[0,:]))
+                stats.append(sc(np.load(join(self.pathtmp,"%s.readout.to.npy"%fname))[0,:]))
             else:
-                stats.append(sc(np.load(join(self.pathtmp,"%s.readout.npy"%uid))[0,:]))
+                stats.append(sc(np.load(join(self.pathtmp,"%s.readout.npy"%fname))[0,:]))
         mn,_,_ = zip(*stats)
         print(mn)
         _m,_,_s = sc(mn)
         print("CDS readout noise is %.2f +/- %.2f"%(_m*self.gain,_s*self.gain))
-    def _single(self,uid):
+    def _single(self,fname):
         if self.toponly:
-            if not isfile(join(self.pathtmp,'%s.readout.to.npy'%uid)):
-                print("%s not found"%uid)
+            if not isfile(join(self.pathtmp,'%s.readout.to.npy'%fname)):
+                print("%s not found"%fname)
                 return [],[]
-            arr = np.load(join(self.pathtmp,'%s.readout.to.npy'%uid))
+            arr = np.load(join(self.pathtmp,'%s.readout.to.npy'%fname))
         else:
-            if not isfile(join(self.pathtmp,'%s.readout.npy'%uid)):
-                print("%s not found"%uid)
+            if not isfile(join(self.pathtmp,'%s.readout.npy'%fname)):
+                print("%s not found"%fname)
                 return [],[]
-            arr = np.load(join(self.pathtmp,'%s.readout.npy'%uid))    
+            arr = np.load(join(self.pathtmp,'%s.readout.npy'%fname))    
         stats = [sc(r) for r in arr]
         S,_,err = zip(*stats)
         return np.asarray(S)*self.gain,np.asarray(err)*self.gain
@@ -127,15 +135,15 @@ class readoutnoise():
         #if self.toponly:
         #fig.savefig(join(self.path,"all_ro_noise.png"))
         plt.show()
-    def plot_comparison(self,uid,noshow=False):
+    def plot_comparison(self,fname,noshow=False):
         from matplotlib import pyplot as plt
         import seaborn as sns
         sns.set_theme()
         fig,ax = plt.subplots()
         self.toponly=True
-        yto,yerrto = self._single(uid)
+        yto,yerrto = self._single(fname)
         self.toponly=False
-        y,yerr = self._single(uid)
+        y,yerr = self._single(fname)
         if len(y)<1 or len(yto)<1:
                 print("something is wrong!")
                 exit(0)
@@ -144,21 +152,21 @@ class readoutnoise():
         ax.errorbar(x,yto,yerr=yerrto,c='b',fmt='')
         ax.plot(x,y,'d',c='r',markersize=2,label="top/bottom ref. px.")
         ax.plot(x,yto,'d',c='b',markersize=2,label="top ref. px.")
-        ax.set(title='Readout noise (uid: %s)'%uid,xlabel='Read number',ylabel='Readout noise (electron)')
+        ax.set(title='Readout noise (file: %s)'%fname,xlabel='Read number',ylabel='Readout noise (electron)')
         ax.set_xlim([2,len(y)])
         ax.legend()
-        fig.savefig(join(self.path,"%s.comp.png"%(uid)))
+        fig.savefig(join(self.path,"%s.comp.png"%(fname)))
         if noshow:
             return
         
         plt.show()
-    def plot_rapport(self,uid,noshow=False):
+    def plot_rapport(self,fname,noshow=False):
         from matplotlib import pyplot as plt
         import seaborn as sns
         sns.set_theme()
         fig,ax = plt.subplots()
         self.toponly=True
-        yto,yerrto = self._single(uid)
+        yto,yerrto = self._single(fname)
 
         if len(yto)<1:
                 print("something is wrong!")
@@ -169,91 +177,35 @@ class readoutnoise():
         ax.plot(x,y2,'--',markersize=2,label="N$^{-1/2}$ decay")
         ax.errorbar(x,yto,yerr=yerrto,c='b',fmt='')
         ax.plot(x,yto,'d',c='b',markersize=2,label="NIRPS [COPL]")
-        ax.set(title='Readout noise (uid: %s)'%uid,xlabel='Read number',ylabel='Readout noise (electron)')
+        ax.set(title='Readout noise (file: %s)'%fname,xlabel='Read number',ylabel='Readout noise (electron)')
         ax.set_xlim([2,len(yto)])
         ax.legend()
-        fig.savefig(join(self.path,"%s.rapport.png"%(uid)))
+        fig.savefig(join(self.path,"%s.rapport.png"%(fname)))
         if noshow:
             return
         
         plt.show()
 if '__main__' in __name__:
-    lsuids =    ['20210406204047',
-                 '20210406205100',
-                 '20210406210113',
-                 '20210406211126',
-                 '20210406212139',
-                 '20210406213152',
-                 '20210406214205',
-                 '20210406215218',
-                 '20210406220231',
-                 '20210406221245',
-                 '20210406222258',
-                 '20210406223311',
-                 '20210406224324',
-                 '20210406225337',
-                 '20210406230350',
-                 '20210406231403',
-                 '20210406232416',
-                 '20210406233429',
-                 '20210406234442',
-                 '20210406235455',
-                 '20210407000508',
-                 '20210407001521',
-                 '20210407002534',
-                 '20210407003547',
-                 '20210407004600',
-                 '20210407005613',
-                 '20210407010626',
-                 '20210407011639',
-                 '20210407012652',
-                 '20210407013706',
-                 '20210407014719',
-                 '20210407015732',
-                 '20210407020745',
-                 '20210407021758',
-                 '20210407022811',
-                 '20210407023824',
-                 '20210407024837',
-                 '20210407025850',
-                 '20210407030903',
-                 '20210407031916',
-                 '20210407032929',
-                 '20210407033942',
-                 '20210407034955',
-                 '20210407040008',
-                 '20210407041021',
-                 '20210407042034',
-                 '20210407043047',
-                 '20210407044100',
-                 '20210407045113',
-                 '20210407050127',
-                 '20210407051140',
-                 '20210407052153',
-                 '20210407053206',
-                 '20210407054219',
-                 '20210407055232',
-                 '20210407060245',
-                 '20210407061258',
-                 '20210407062311',
-                 '20210407063324',
-                 '20210407064337']#data for NIRPS
-    fr = fr()
-    '''
-    for uid in lsuids:
-        print("Working on %s"%uid)
+    
+    darks = ["NIRPS_2022-05-05T15_31_01_590.fits",
+            "NIRPS_2022-05-05T15_40_24_489.fits",
+            "NIRPS_2022-05-05T15_49_47_388.fits",
+            "NIRPS_2022-05-05T15_59_10_285.fits"]
+
+    
+    for fname in darks:
+        print("Working on %s"%fname)
         ro_noise = readoutnoise()
-        
-        ro_array = ro_noise.make(uid)
-    '''
+        ro_array = ro_noise.make(fname)
+
     #to plot comparaison between top and top/bottom ref. px methods
     ro_noise = readoutnoise()  
     
     #ro_noise.plot_comparison(lsuids[0],noshow=True)
     #ro_noise.plot_comparison(lsuids[1])
     #ro_noise.make_graph(lsuids)
-    ro_noise.plot_rapport(lsuids[0])
-    ro_noise.check_cds_noise(lsuids)
+    ro_noise.plot_rapport(darks[0])
+    ro_noise.check_cds_noise(darks)
     #ro_noise.plot(lsuids)
     #to plot the results
     #ro_noise = readoutnoise()   
