@@ -85,32 +85,32 @@ class readoutnoise():
         stats = [sc(r) for r in arr]
         S,_,err = zip(*stats)
         return np.asarray(S)*self.gain,np.asarray(err)*self.gain
-    def make_graph(self,uids):
+    def make_graph(self,fnames):
         from matplotlib import pyplot as plt
         import seaborn as sns
         sns.set_theme()
         fig,ax = plt.subplots(2,1,figsize=(12,9))
         self.toponly = True
-        for uid in uids:
-            y,yerr = self._single(uid)
+        for fname in fnames:
+            y,yerr = self._single(fname)
             if len(y)<1:
                 continue
             x = np.arange(2,len(y)+2,1)
             #ax.errorbar(x,y,yerr=yerr,fmt='')
-            ax[0].plot(x,y,markersize=2,label=uid)
+            ax[0].plot(x,y,markersize=2,label=fname.replace(".fits","").replace("NIRPS_",""))
         self.toponly = False
-        for uid in uids:
-            y,yerr = self._single(uid)
+        for fname in fnames:
+            y,yerr = self._single(fname)
             if len(y)<1:
                 continue
             x = np.arange(2,len(y)+2,1)
             #ax.errorbar(x,y,yerr=yerr,fmt='')
-            ax[1].plot(x,y,markersize=2,label=uid)
+            ax[1].plot(x,y,markersize=2,label=fname.replace(".fits","").replace("NIRPS_",""))
         ax[0].set_xlim([2,len(y)])
-        ax[0].set(title='Readout noise of %d ramps [top only]'%(len(uids)),ylabel='Readout noise (electron)')
+        ax[0].set(title='Readout noise of %d ramps [top only]'%(len(fnames)),ylabel='Readout noise (electron)')
         ax[1].set_xlim([2,len(y)])
         ax[0].set_ylim(ax[1].get_ylim())
-        ax[1].set(title='Readout noise of %d ramps'%(len(uids)),xlabel='Read number',ylabel='Readout noise (electron)')
+        ax[1].set(title='Readout noise of %d ramps'%(len(fnames)),xlabel='Read number',ylabel='Readout noise (electron)')
         plt.tight_layout()
         fig.savefig(join(self.path,"ro_noise_all.png"))
         plt.show()
@@ -192,18 +192,24 @@ if '__main__' in __name__:
             "NIRPS_2022-05-05T15_49_47_388.fits",
             "NIRPS_2022-05-05T15_59_10_285.fits"]
 
-    
+    '''
     for fname in darks:
         print("Working on %s"%fname)
         ro_noise = readoutnoise()
+        ro_noise.toponly = False
         ro_array = ro_noise.make(fname)
-
+    for fname in darks:
+        print("Working on %s"%fname)
+        ro_noise = readoutnoise()
+        ro_noise.toponly = True#default setup
+        ro_array = ro_noise.make(fname)
+    '''
     #to plot comparaison between top and top/bottom ref. px methods
     ro_noise = readoutnoise()  
     
     #ro_noise.plot_comparison(lsuids[0],noshow=True)
     #ro_noise.plot_comparison(lsuids[1])
-    #ro_noise.make_graph(lsuids)
+    ro_noise.make_graph(darks)
     ro_noise.plot_rapport(darks[0])
     ro_noise.check_cds_noise(darks)
     #ro_noise.plot(lsuids)
